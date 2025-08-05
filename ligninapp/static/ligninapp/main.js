@@ -90,22 +90,29 @@ function closeReplaceModal() {
 }
 
 // === new paper viewer + replace modal ===
-function openPaperModal({ id, url, name }) {
-    // Title
-    document.getElementById("paperModalTitle").textContent = name || "Paper";
-  
-    const absUrl = /^https?:\/\//i.test(url) ? url : `${window.location.origin}${url}`;
-  
-    const viewerUrl = `${STATIC_BASE}ligninapp/pdfjs/web/viewer.html?file=${encodeURIComponent(absUrl)}#zoom=page-width`;
-  
-    const viewer = document.getElementById("paperViewer");
-    viewer.src = viewerUrl;
-  
-    document.getElementById("paperModalPaperId").value = id || "";
-    document.getElementById("paperModal").style.display = "block";
+function openPaperModal({ id, url, name, abstract = "" }) {
+  document.getElementById("paperModalTitle").textContent = name || "Paper";
+  document.getElementById("paperAbstract").textContent = abstract || "No abstract provided.";
+
+  const absUrl = /^https?:\/\//i.test(url) ? url : `${window.location.origin}${url}`;
+  const viewerUrl = `${STATIC_BASE}ligninapp/pdfjs/web/viewer.html?file=${encodeURIComponent(absUrl)}#zoom=page-width`;
+
+  const viewer = document.getElementById("paperViewer");
+  viewer.src = viewerUrl;
+
+  // ✅ Fix: Ensure paperModalPaperId exists before trying to set it
+  let input = document.getElementById("paperModalPaperId");
+  if (!input) {
+    input = document.createElement("input");
+    input.type = "hidden";
+    input.id = "paperModalPaperId";
+    document.getElementById("paperModal").appendChild(input);
   }
-  
-  
+  input.value = id || "";
+
+  document.getElementById("paperModal").style.display = "block";
+}
+
 function closePaperModal() {
   const modal = document.getElementById("paperModal");
   const viewer = document.getElementById("paperViewer");
@@ -183,16 +190,40 @@ function reloadPapers() {
                 try { return decodeURIComponent(u.split("/").pop().split("?")[0]); }
                 catch { return u; }
               })(url);
-
+        
             const paperId = d.id.replace("upload-", "");
+            const abstract = d.abstract || d.notes || "";
+        
             return `<a href="#" class="paper-link"
-                      data-id="${paperId}"
-                      data-url="${url}"
-                      data-name="${escapeHtml(name)}">${escapeHtml(name || "—")}</a>`;
+                        data-id="${paperId}"
+                        data-url="${url}"
+                        data-name="${escapeHtml(name)}"
+                        data-abstract="${escapeHtml(abstract)}">${escapeHtml(name || "—")}</a>`;
           },
           widthGrow: 2,
           hozAlign: "left",
-        },
+        
+          cellClick: function(e, cell) {
+            const d = cell.getRow().getData();
+            const url = d.url;
+            const name =
+              d.paper_title || d.file_name || d.filename || d.original_filename ||
+              (function(u){
+                if (!u) return "";
+                try { return decodeURIComponent(u.split("/").pop().split("?")[0]); }
+                catch { return u; }
+              })(url);
+            const abstract = d.abstract || d.notes || "";
+            const paperId = d.id.replace("upload-", "");
+        
+            openPaperModal({
+              id: paperId,
+              url: url,
+              name: name,
+              abstract: abstract,
+            });
+          }
+        },        
         {
           title: "Delete",
           formatter: "buttonCross",
@@ -214,12 +245,8 @@ function reloadPapers() {
       ]
     });
 
-    // Block editing unless in Edit mode
-    table.on("cellEditing", function(){
-      if (!window.__editMode) return false;
-    });
+    table.on("cellEditing", () => !window.__editMode ? false : undefined);
 
-    // Persist edits only while in Edit mode
     table.on("cellEdited", function(cell) {
       if (!window.__editMode) return;
 
@@ -275,17 +302,14 @@ function updateEditButtonUI() {
 
 // === single DOMContentLoaded block ===
 document.addEventListener("DOMContentLoaded", () => {
-  // Legacy replace modal submit (kept for now)
   const replaceForm = document.getElementById("replaceForm");
   if (replaceForm) {
     replaceForm.addEventListener("submit", function(e) {
       e.preventDefault();
-
       const paperId = document.getElementById("replacePaperId").value;
       const fileInput = document.getElementById("newFile");
       const formData = new FormData();
       formData.append("file", fileInput.files[0]);
-
       fetch(`/papers/replace/${paperId}/`, {
         method: "POST",
         headers: { "X-CSRFToken": csrftoken },
@@ -304,75 +328,5 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // New paper viewer modal: delegated click from table
-  const tableEl = document.getElementById("paper-table");
-  if (tableEl) {
-    tableEl.addEventListener("click", (e) => {
-      const a = e.target.closest("a.paper-link");
-      if (!a) return;
-      e.preventDefault();
-      openPaperModal({
-        id: a.dataset.id,
-        url: a.dataset.url,
-        name: a.dataset.name,
-      });
-    });
-  }
-
-  // Paper viewer modal: replace submit
-  const paperReplaceForm = document.getElementById("paperReplaceForm");
-  if (paperReplaceForm) {
-    paperReplaceForm.addEventListener("submit", function(e){
-      e.preventDefault();
-      const paperId = document.getElementById("paperModalPaperId").value;
-      const fileInput = document.getElementById("paperModalNewFile");
-      if (!paperId || !fileInput.files.length) return;
-
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
-
-      fetch(`/papers/replace/${paperId}/`, {
-        method: "POST",
-        headers: { "X-CSRFToken": csrftoken },
-        body: formData
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          alert("File replaced successfully!");
-          closePaperModal();
-          reloadPapers();
-        } else {
-          alert("Replace failed: " + data.error);
-        }
-      });
-    });
-  }
-
-  // Close paper modal on ESC or backdrop click
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closePaperModal();
-  });
-  const paperModal = document.getElementById("paperModal");
-  if (paperModal) {
-    paperModal.addEventListener("click", (e) => {
-      if (e.target === paperModal) closePaperModal();
-    });
-  }
-
-  // Edit toggle
-  const btn = document.getElementById("toggle-edit");
-  if (btn) {
-    btn.addEventListener("click", () => {
-      window.__editMode = !window.__editMode;
-      document.body.classList.toggle("edit-mode", window.__editMode);
-      updateEditButtonUI();
-      applyEditMode();
-    });
-    document.body.classList.toggle("edit-mode", window.__editMode);
-    updateEditButtonUI();
-  }
-
-  // Load table
   reloadPapers();
 });
