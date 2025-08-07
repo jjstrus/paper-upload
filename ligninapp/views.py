@@ -15,12 +15,11 @@ from django.urls import reverse
 from django.shortcuts import redirect
 from .models import UploadedPaper
 from django.views.decorators.http import require_http_methods
-
-
-
 import environ
 env = environ.Env()
 environ.Env.read_env()
+from django.views.decorators.csrf import csrf_exempt
+
 
 
 def index(request):
@@ -321,3 +320,23 @@ def replace_uploaded_paper(request, paper_id):
         return JsonResponse({"success": True})
     except UploadedPaper.DoesNotExist:
         return JsonResponse({"success": False, "error": "Paper not found"}, status=404)
+
+@csrf_exempt
+def generate_answers(request, question_id):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            questions = data.get("questions", [])
+
+            # Fake placeholder answers for now
+            answers = []
+            for q in questions:
+                answers.append({
+                    "question": q,
+                    "answer": f"There are xxx answers to the question: '{q}'"
+                })
+
+            return JsonResponse({"answers": answers})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Invalid request method"}, status=405)

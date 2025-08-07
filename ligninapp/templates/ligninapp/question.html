@@ -36,26 +36,22 @@
 
   <h2>{{ question }}</h2>
 
-  This page has three sections:
   <ul>
-    <li><b>Current Papers</b> is a list of papers currently in the review, as part of a grid. Double-click on custom columns to edit.</li>
+    <li><b>Current Papers</b> is a list of papers currently in the review.</li>
     <li><b>Search</b> lets you add papers by name or keyword.</li>
-    <li><b>Snowball</b> lets you search papers using the papers you've already included in the dataset.</li>
+    <li><b>Snowball</b> lets you search papers using the ones already in the dataset.</li>
   </ul>
 
   <div>
     <h3>Current Papers</h3>
-
     <div class="toolbar">
       <a href="/column/add/?review={{ question_id }}">Create New Column</a>
       <span class="sep">|</span>
       <span>Add rows by the "search" tool <a href="#h3-search">below.</a></span>
       <span class="sep">|</span>
       <button onclick="toggleFullWidth()">Toggle Full Width</button>
-      <button id="toggle-edit" class="btn btn-outline-warning">Edit</button>
       <button id="btn-upload" onclick="toggleUploadModal(true)">Upload New Paper</button>
     </div>
-
     <div id="paper-table-container">
       <div id="paper-table"></div>
     </div>
@@ -86,49 +82,40 @@
         {% csrf_token %}
         <label>Title:</label><br>
         <input type="text" name="title" required><br><br>
-
         <label>Author:</label><br>
         <input type="text" name="author"><br><br>
-
         <label>Year:</label><br>
         <input type="number" name="year" min="0" max="9999"><br><br>
-
         <label>PDF File:</label><br>
         <input type="file" name="file" required><br><br>
-
         <button type="submit">Upload</button>
         <button type="button" onclick="toggleUploadModal(false)">Cancel</button>
       </form>
     </div>
   </div>
 
-  <!-- Replace File Modal -->
+  <!-- Replace Modal -->
   <div id="replaceModal" class="modal">
     <div class="modal-content">
       <span class="close" onclick="closeReplaceModal()">&times;</span>
       <form id="replaceForm" method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="paper_id" id="replacePaperId">
-
         <label for="newFile">Choose new PDF to upload:</label><br><br>
         <input type="file" name="new_file" id="newFile" accept="application/pdf" required><br><br>
-
         <button type="submit">Replace File</button>
         <button type="button" onclick="closeReplaceModal()">Cancel</button>
       </form>
     </div>
   </div>
 
-  <!-- Paper Viewer + Replace Modal -->
+  <!-- Paper Modal -->
   <div id="paperModal" class="paper-modal" aria-modal="true" role="dialog">
     <div class="wrap">
-      <!-- Left: Paper info and Q&A -->
       <div style="flex: 1; max-width: 45%; overflow-y: auto; padding: 16px;">
         <h2 id="paperModalTitle">Paper Title</h2>
-
         <p><strong>Review Abstract:</strong></p>
         <p id="paperAbstract" class="muted">Loading abstract...</p>
-
         <div id="qa-section" style="margin-top: 20px;">
           <h3>Paper Q&A</h3>
           <div id="qa-list">
@@ -136,28 +123,87 @@
           </div>
           <button id="edit-btn" style="margin-top: 10px;">Edit</button>
         </div>
-
         <div class="footer" style="margin-top: 20px;">
           <button type="button" onclick="closePaperModal()">Close</button>
         </div>
       </div>
-
-      <!-- Right: PDF Viewer -->
       <div class="pdf-viewer" style="flex: 1; max-width: 55%; height: 80vh; border-radius: 8px; overflow: hidden; border: 1px solid #ccc;">
         <iframe id="paperViewer" src="" style="width: 100%; height: 100%; border: none;"></iframe>
       </div>
     </div>
   </div>
-  
+
+  <!-- Nested Edit Modal -->
+  <div id="nested-edit-modal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeNestedModal()">&times;</span>
+      <h3>Edit Paper Q&A</h3>
+      <div id="questions-container"></div>
+      <button onclick="addQuestionInput()">Add Question</button>
+      <button onclick="confirmQuestions()">Confirm & Generate</button>
+    </div>
+  </div>
+
   <script>
     function toggleUploadModal(show) {
       const modal = document.getElementById("uploadModal");
       if (!modal) return;
       modal.style.display = show ? "block" : "none";
     }
-  </script>
-  
 
+    function openNestedModal() {
+      document.getElementById("nested-edit-modal").style.display = "block";
+    }
+
+    function closeNestedModal() {
+      document.getElementById("nested-edit-modal").style.display = "none";
+    }
+
+    function addQuestionInput() {
+      const container = document.getElementById("questions-container");
+      const div = document.createElement("div");
+      div.innerHTML = `
+        <input type="text" class="question-input" placeholder="Enter question" style="margin-bottom: 4px;">
+        <button onclick="this.parentElement.remove()">Remove</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function confirmQuestions() {
+      const inputs = document.querySelectorAll('.question-input');
+      const questions = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+      const container = document.getElementById("questions-container");
+
+      if (questions.length === 0) {
+        container.innerHTML = `<p style="color: red;">Please add at least one question.</p>`;
+        return;
+      }
+
+      container.innerHTML = "";
+
+      const qaTable = document.createElement('div');
+      qaTable.style.border = '1px solid #ccc';
+      qaTable.style.borderRadius = '6px';
+      qaTable.style.padding = '10px';
+      qaTable.style.marginTop = '20px';
+
+      questions.forEach((q, idx) => {
+        const qaRow = document.createElement('div');
+        qaRow.style.marginBottom = '10px';
+        qaRow.innerHTML = `<strong>Q${idx + 1}:</strong> ${q}<br><strong>A:</strong> [Answer will go here]`;
+        qaTable.appendChild(qaRow);
+      });
+
+      container.appendChild(qaTable);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const editBtn = document.getElementById("edit-btn");
+      if (editBtn) {
+        editBtn.addEventListener("click", openNestedModal);
+      }
+    });
+  </script>
 
   <script>
     const questionID = {{ question_id }};

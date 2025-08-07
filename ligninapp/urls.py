@@ -20,4 +20,5 @@ urlpatterns = [
     path("papers/update/<int:paper_id>/", views.update_uploaded_paper, name="update_uploaded_paper"),
     path("papers/replace/<int:paper_id>/", views.replace_uploaded_paper, name="replace_uploaded_paper"),
     path('question/add/step2/<int:review_id>/', views.add_columns_papers, name='add-columns-papers'),
+    path('question/<int:question_id>/generate_answers/', views.generate_answers, name='generate_answers')
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
